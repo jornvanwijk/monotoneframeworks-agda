@@ -1,0 +1,258 @@
+open import Data.String hiding (_++_ ; setoid)
+open import Data.Nat
+open import Function
+open import Relation.Unary
+open import Relation.Nullary
+open import Relation.Nullary.Sum renaming (_⊎-dec_ to _⋁-dec_)
+open import Relation.Nullary.Product renaming (_×-dec_ to _⋀-dec_)
+open import Relation.Nullary.Decidable 
+open import Relation.Nullary.Implication
+open import Relation.Nullary.Negation
+open import Level
+open import Data.Product
+open import Relation.Binary.PropositionalEquality hiding ([_])
+open import Data.Empty
+open import Data.List
+open import Data.Sum renaming (_⊎_ to _⋁_)
+open import Data.Fin renaming (_+_ to _fin+_)
+
+module While.Language (n : ℕ) (m : ℕ) where    
+  Var : Set
+  Var = Fin m
+
+  data AExpr : Set where
+    var : Var → AExpr
+    lit : ℕ → AExpr
+    _plus_ : AExpr → AExpr → AExpr
+    _min_ : AExpr → AExpr → AExpr
+    _mul_ : AExpr → AExpr → AExpr
+    
+  data BExpr : Set where
+    true : BExpr
+    false : BExpr
+    not : BExpr → BExpr
+    _and_ : BExpr → BExpr → BExpr
+    _or_ : BExpr → BExpr → BExpr
+    _gt_ : AExpr → AExpr → BExpr
+
+  open import Relation.Binary
+  open import Data.Product
+  open import Relation.Nullary.Product
+  open import Data.Fin.Properties
+
+  _≟A_ : Relation.Binary.Decidable {A = AExpr} _≡_
+  var x ≟A var x₁ with x Data.Fin.Properties.≟ x₁
+  var x ≟A var x₁ | yes p = yes (cong var p)
+  var x ≟A var x₁ | no ¬p = no (λ{ refl → ¬p refl})
+  var x ≟A lit x₁ = no (λ{ ()})
+  var x ≟A (y plus y₁) = no (λ{ ()})
+  var x ≟A (y min y₁) = no (λ{ ()})
+  var x ≟A (y mul y₁) = no (λ{ ()})
+  lit x ≟A var x₁ = no (λ{ ()})
+  lit x ≟A lit x₁ with x Data.Nat.≟ x₁
+  lit x ≟A lit x₁ | yes p = yes (cong lit p)
+  lit x ≟A lit x₁ | no ¬p = no (λ{ refl → ¬p refl})
+  lit x ≟A (y plus y₁) = no (λ{ ()})
+  lit x ≟A (y min y₁) = no (λ{ ()})
+  lit x ≟A (y mul y₁) = no (λ{ ()})
+  (x plus x₁) ≟A var x₂ = no (λ{ ()})
+  (x plus x₁) ≟A lit x₂ = no (λ{ ()})
+  (x plus x₁) ≟A (y plus y₁) with x ≟A y ×-dec x₁ ≟A y₁
+  (x plus x₁) ≟A (y plus y₁) | yes (proj₁ , proj₂) = yes (cong₂ _plus_ proj₁ proj₂)
+  (x plus x₁) ≟A (y plus y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+  (x plus x₁) ≟A (y min y₁) = no (λ{ ()})
+  (x plus x₁) ≟A (y mul y₁) = no (λ{ ()})
+  (x min x₁) ≟A var x₂ = no (λ{ ()})
+  (x min x₁) ≟A lit x₂ = no (λ{ ()})
+  (x min x₁) ≟A (y plus y₁) = no (λ{ ()})
+  (x min x₁) ≟A (y min y₁) with x ≟A y ×-dec x₁ ≟A y₁
+  (x min x₁) ≟A (y min y₁) | yes (proj₁ , proj₂) = yes (cong₂ _min_ proj₁ proj₂)
+  (x min x₁) ≟A (y min y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+  (x min x₁) ≟A (y mul y₁) = no (λ{ ()})
+  (x mul x₁) ≟A var x₂ = no (λ{ ()})
+  (x mul x₁) ≟A lit x₂ = no (λ{ ()})
+  (x mul x₁) ≟A (y plus y₁) = no (λ{ ()})
+  (x mul x₁) ≟A (y min y₁) = no (λ{ ()})
+  (x mul x₁) ≟A (y mul y₁) with x ≟A y ×-dec x₁ ≟A y₁
+  (x mul x₁) ≟A (y mul y₁) | yes (proj₁ , proj₂) = yes (cong₂ _mul_ proj₁ proj₂)
+  (x mul x₁) ≟A (y mul y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+
+
+  _≟B_ : Relation.Binary.Decidable {A = BExpr} _≡_
+  true ≟B true = yes refl
+  true ≟B false = no (λ{ ()})
+  true ≟B not y = no (λ{ ()})
+  true ≟B (y and y₁) = no (λ{ ()})
+  true ≟B (y or y₁) = no (λ{ ()})
+  true ≟B (x gt x₁) = no (λ{ ()})
+  false ≟B true = no (λ{ ()})
+  false ≟B false = yes refl
+  false ≟B not y = no (λ{ ()})
+  false ≟B (y and y₁) = no (λ{ ()})
+  false ≟B (y or y₁) = no (λ{ ()})
+  false ≟B (x gt x₁) =  no (λ{ ()})
+  not x ≟B true =  no (λ{ ()})
+  not x ≟B false =  no (λ{ ()})
+  not x ≟B not y with x ≟B y
+  not x ≟B not y | yes p = yes (cong not p)
+  not x ≟B not y | no ¬p = no (λ{ refl → ¬p refl})
+  not x ≟B (y and y₁) =  no (λ{ ()})
+  not x ≟B (y or y₁) =  no (λ{ ()})
+  not x ≟B (x₁ gt x₂) =  no (λ{ ()})
+  (x and x₁) ≟B true = no (λ{ ()})
+  (x and x₁) ≟B false = no (λ{ ()})
+  (x and x₁) ≟B not y = no (λ{ ()})
+  (x and x₁) ≟B (y and y₁) with x ≟B y | x₁ ≟B y₁
+  (x and x₁) ≟B (y and y₁) | yes p | yes p₁ = yes (cong₂ _and_ p p₁)
+  (x and x₁) ≟B (y and y₁) | no ¬p | yes p =  no (λ{ refl → ¬p refl})
+  (x and x₁) ≟B (y and y₁) | yes p | no ¬p =  no (λ{ refl → ¬p refl})
+  (x and x₁) ≟B (y and y₁) | no ¬p | no ¬p₁ = no (λ{ refl → ¬p refl})
+  (x and x₁) ≟B (y or y₁) = no (λ{ ()})
+  (x and x₁) ≟B (x₂ gt x₃) = no (λ{ ()})
+  (x or x₁) ≟B true =  no (λ{ ()})
+  (x or x₁) ≟B false =  no (λ{ ()})
+  (x or x₁) ≟B not y =  no (λ{ ()})
+  (x or x₁) ≟B (y and y₁) =  no (λ{ ()})
+  (x or x₁) ≟B (y or y₁) with x ≟B y ×-dec x₁ ≟B y₁
+  (x or x₁) ≟B (y or y₁) | yes (proj₁ , proj₂) = yes (cong₂ _or_ proj₁ proj₂)
+  (x or x₁) ≟B (y or y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+  (x or x₁) ≟B (x₂ gt x₃) =  no (λ{ ()})
+  (x gt x₁) ≟B true =  no (λ{ ()})
+  (x gt x₁) ≟B false =  no (λ{ ()})
+  (x gt x₁) ≟B not y =  no (λ{ ()})
+  (x gt x₁) ≟B (y and y₁) =  no (λ{ ()})
+  (x gt x₁) ≟B (y or y₁) =  no (λ{ ()})
+  (x gt x₁) ≟B (x₂ gt x₃) with x ≟A x₂ ×-dec x₁ ≟A x₃
+  (x gt x₁) ≟B (x₂ gt x₃) | yes (proj₁ , proj₂) = yes (cong₂ _gt_ proj₁ proj₂)
+  (x gt x₁) ≟B (x₂ gt x₃) | no ¬p = no (λ{ refl → ¬p ((refl , refl))})
+
+
+  
+  infixr 50 _seq_
+  infixr 60 while_do_
+  infix 70 _:=_
+  infix 71 _mul_ {- todo: correct fixity -}
+  infix 71 _min_ {- todo: . -}
+  Lab : Set
+  Lab = Fin n
+
+  data Stmt : Set where
+    _:=_ : (v : Var) → (e : AExpr) → (l : Lab) → Stmt
+    skip : (l : Lab) → Stmt
+    _seq_ : (s₁ : Stmt) → (s₂ : Stmt) → Stmt
+    if_then_else_ : (BExpr × Lab) → (t : Stmt) → (f : Stmt) → Stmt
+    while_do_ : (BExpr × Lab) → (b : Stmt) → Stmt
+                                             
+  postulate
+    _≟S_ : Relation.Binary.Decidable {A = Stmt} _≡_
+
+  Var*-AExpr : AExpr → List Var
+  Var*-AExpr (var x) = [ x ]
+  Var*-AExpr (lit x) = []
+  Var*-AExpr (a plus a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+  Var*-AExpr (a min a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+  Var*-AExpr (a mul a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+  
+  Var*-BExpr : BExpr → List Var
+  Var*-BExpr true = []
+  Var*-BExpr false = []
+  Var*-BExpr (not b) = []
+  Var*-BExpr (b and b₁) = []
+  Var*-BExpr (b or b₁) = []
+  Var*-BExpr (x gt x₁) = Var*-AExpr x ++ Var*-AExpr x₁
+
+  Var* : Stmt → List Var
+  Var* ((v := e) l) = v ∷ Var*-AExpr e
+  Var* (skip l) = []
+  Var* (s seq s₁) = Var* s ++ Var* s₁
+  Var* (if proj₁ , proj₂ then s else s₁) = Var*-BExpr proj₁ ++ Var* s ++ Var* s₁
+  Var* (while proj₁ , proj₂ do s) = Var*-BExpr proj₁ ++ Var* s
+
+    
+ 
+
+  {-
+  Var*' : AExpr → Pred Var Level.zero
+  Var*' (var x₁) v₁ = x₁ ≡ v₁
+  Var*' (lit x₁) v₁ = ⊥
+  Var*' (a plus a₁) v₁ = v₁ ∈ (Var*' a ∪ Var*' a₁)
+  Var*' (a min a₁) v₁ =  v₁ ∈ (Var*' a ∪ Var*' a₁)
+  Var*' (a mul a₁) v₁ = v₁ ∈ (Var*' a ∪ Var*' a₁)
+                                              
+                                              
+  Var* : Stmt → Pred Var Level.zero
+  Var* ((i := x) l) v = i ≡ v ⋁ v ∈ Var*' x
+  Var* (skip x) v = ⊥
+  Var* (s seq s₁) v = v ∈ (Var* s ∪ Var* s₁)
+  Var* (if c , l then t else f) v = v ∈ (Var* t ∪ Var* f)
+  Var* (while c , l do s) v = Var* s v
+
+  Var*'-dec : (expr : AExpr) → Decidable (Var*' expr)
+  Var*'-dec (var x) v = x Data.String.≟ v
+  Var*'-dec (lit x) v = no (λ x₁ → x₁)
+  Var*'-dec (x plus x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  Var*'-dec (x min x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  Var*'-dec (x mul x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  
+  Var*-dec : (program : Stmt) → Decidable (Var* program)
+  Var*-dec ((x := x₁) x₂) x₃ = x Data.String.≟ x₃ ⋁-dec Var*'-dec x₁ x₃
+  Var*-dec (skip x) x₁ = no (λ z → z)
+  Var*-dec (program seq program₁) x = Var*-dec program x ⋁-dec Var*-dec program₁ x
+  Var*-dec (if x then program else program₁) x₁ = Var*-dec program x₁ ⋁-dec Var*-dec program₁ x₁
+  Var*-dec (while x do program) x₁ =  Var*-dec program x₁
+  -}
+
+  init : Stmt → Lab
+  init ((v := e) l) = l
+  init (skip x) = x
+  init (s seq s₁) = init s
+  init (if proj₁ , proj₂ then s else s₁) = proj₂
+  init (while proj₁ , proj₂ do s) = proj₂
+
+  import Data.List.NonEmpty as L⁺
+  final : Stmt → L⁺.List⁺ Lab
+  final ((v := e) l) = L⁺.[ l ]
+  final (skip l) = L⁺.[ l ]
+  final (s seq s₁) = final s₁
+  final (if proj₁ , proj₂ then s else s₁) = final s L⁺.⁺++⁺ final s₁
+  final (while proj₁ , proj₂ do s) = L⁺.[ proj₂ ]
+    
+  data Block : Set where
+    skip : (l : Lab) → Block
+    _:=_ : (x : Var) → (a : AExpr) → (l : Lab) → Block
+    bExpr : (c : BExpr) → (l : Lab) → Block
+ 
+
+  -- we want this function to be: Stmt → Vec Block n
+  -- but, we dont have proof that every label is present in the code.
+  blocks : Stmt → List Block
+  blocks ((v := e) l) = [ (v := e) l ]
+  blocks (skip l) = [ skip l ]
+  blocks (s seq s₁) = blocks s ++ blocks s₁
+  blocks (if proj₁ , proj₂ then s else s₁) = bExpr proj₁ proj₂ ∷ blocks s ++ blocks s₁
+  blocks (while proj₁ , proj₂ do s) = bExpr proj₁ proj₂ ∷ blocks s
+
+  -- but a quicker and dirtier solution is to use this function
+  getLab : Block → Lab
+  getLab (skip l) = l
+  getLab ((x := a) l) = l
+  getLab (bExpr c l) = l
+
+  labels : Stmt → List Lab
+  labels ((v := e) l) = [ l ]
+  labels (skip l) = [ l ]
+  labels (s seq s₁) = labels s Data.List.++ labels s₁
+  labels (if x then s else s₁) = proj₂ x ∷ labels s Data.List.++ labels s₁
+  labels (while x do s) = proj₂ x ∷ labels s
+
+  flow : Stmt → List (Lab × Lab)
+  flow ((v := e) l) = []
+  flow (skip l) = []
+  flow (s seq s₁) = flow s ++ flow s₁ ++ L⁺.toList (L⁺.map (λ x → x , init s₁) (final s)) 
+  flow (if x then s else s₁) = ((proj₂ x) , (init s)) ∷ ((proj₂ x) , (init s₁)) ∷ flow s ++ flow s₁
+  flow (while x do s) = ((proj₂ x) , (init s)) ∷ flow s ++ L⁺.toList (L⁺.map (λ l' → l' , proj₂ x) (final s))
+
+  open import Data.Graph n
+
+  flowᴿ : Stmt → Graph
+  flowᴿ s = flow s ᴿ

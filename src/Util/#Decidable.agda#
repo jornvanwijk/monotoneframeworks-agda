@@ -1,0 +1,19 @@
+module Util.Decidable where
+
+open import Relation.Binary
+open import Relation.Binary.PropositionalEquality
+open import Algebra.FunctionProperties
+
+
+{-
+Dec (inj₁ x ≡ inj₁ x₁)
+Have: Dec (x ≡ x₁)
+-}
+ {a} {A : Set a} { x y : A} → x ≡ y → P (x ≡ y)
+
+
+
+--Decidable : ∀ {a b ℓ} {A : Set a} {B : Set b} → REL A B ℓ →
+cong-dec : ∀ {a b ℓ} → {A : Set a} → {B : Set b} → {_op_ : Rel A ℓ } → Decidable _op_ → (f : A → B) → Decidable (λ x y → f x op f y)
+cong-dec = ?
+

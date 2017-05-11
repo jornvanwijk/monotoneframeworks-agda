@@ -1,0 +1,607 @@
+open import Data.String hiding (_++_ ; setoid)
+open import Data.Nat
+open import Function
+open import Relation.Unary
+open import Relation.Nullary
+open import Relation.Nullary.Sum renaming (_⊎-dec_ to _⋁-dec_)
+open import Relation.Nullary.Product renaming (_×-dec_ to _⋀-dec_)
+open import Relation.Nullary.Decidable 
+open import Relation.Nullary.Implication
+open import Relation.Nullary.Negation
+open import Level
+open import Data.Product
+open import Relation.Binary.PropositionalEquality hiding ([_])
+open import Data.Empty
+open import Data.List
+open import Data.Sum renaming (_⊎_ to _⋁_)
+open import Data.Fin renaming (_+_ to _fin+_)
+open import Data.Integer
+
+module While.Language (n : ℕ) (m : ℕ) where
+
+  module Common where
+
+    infix 71 _mul_ {- todo: correct fixity -}
+    infix 71 _min_ {- todo: . -}
+    data AExpr {a} (Ident : Set a) : Set a where
+      var : Ident → AExpr Ident
+      lit : ℤ → AExpr  Ident
+      _plus_ : AExpr Ident → AExpr Ident → AExpr Ident
+      _min_ : AExpr Ident → AExpr Ident → AExpr Ident
+      _mul_ : AExpr Ident → AExpr Ident → AExpr Ident
+      
+    data BExpr {a} (Ident : Set a) : Set a where
+      true : BExpr Ident
+      false : BExpr Ident
+      not : BExpr Ident → BExpr Ident
+      _and_ : BExpr Ident → BExpr Ident → BExpr Ident
+      _or_ : BExpr Ident → BExpr Ident → BExpr Ident
+      _gt_ : AExpr Ident → AExpr Ident → BExpr Ident
+
+    
+  module Unlabeled where
+
+    AExpr : Set
+    AExpr = Common.AExpr {Level.zero} String
+    
+    BExpr : Set
+    BExpr = Common.BExpr {Level.zero} String
+  
+    open Common hiding (AExpr ; BExpr)
+    
+    open import Data.String
+    data Stmt : Set where
+      _:=_ : (v : String) → (e : AExpr) → Stmt
+      skip :  Stmt
+      _seq_ : (s₁ : Stmt) → (s₂ : Stmt) → Stmt
+      if_then_else_ : (c : BExpr) → (t : Stmt) → (f : Stmt) → Stmt
+      while_do_ : (c : BExpr) → (b : Stmt) → Stmt
+
+    countBlocks : Stmt → ℕ
+    countBlocks (v := e) = 1
+    countBlocks (skip) = 1
+    countBlocks (x seq x₁) = countBlocks x Data.Nat.+ countBlocks x₁
+    countBlocks (if x then x₁ else x₂) = 1 Data.Nat.+ countBlocks x₁ Data.Nat.+ countBlocks x₂
+    countBlocks (while x do x₁) = 1 Data.Nat.+ countBlocks x₁
+
+--    open import Utilities.ListProperties
+    open import Util.List
+
+    countVariables-AExpr : AExpr → (xs : List String) → NoDupInd xs → Σ[ zs ∈ List String ] NoDupInd zs
+    countVariables-AExpr (var x) xs x₁ with x ∈?[ Data.String._≟_ ] xs
+    countVariables-AExpr (var x) xs x₁ | yes p = xs , x₁
+    countVariables-AExpr (var x) xs x₁ | no ¬p = (x ∷ xs) , (¬p ::: x₁)
+    countVariables-AExpr (lit x) xs x₁ = xs , x₁
+    countVariables-AExpr (x plus x₁) xs x₂ = let (ys , p) = countVariables-AExpr x xs x₂
+                                             in countVariables-AExpr x₁ ys p
+    countVariables-AExpr (x min x₁) xs x₂ = let (ys , p) = countVariables-AExpr x xs x₂
+                                            in countVariables-AExpr x₁ ys p
+    countVariables-AExpr (x mul x₁) xs x₂ = let (ys , p) = countVariables-AExpr x xs x₂
+                                            in countVariables-AExpr x₁ ys p
+
+    countVariables-BExpr : BExpr → (xs : List String) → NoDupInd xs → Σ[ zs ∈ List String ] NoDupInd zs
+    countVariables-BExpr true xs x₁ = xs , x₁
+    countVariables-BExpr false xs x₁ = xs , x₁
+    countVariables-BExpr (not x) xs x₁ = xs , x₁
+    countVariables-BExpr (x and x₁) xs x₂ = let (ys , p) = countVariables-BExpr x xs x₂
+                                            in countVariables-BExpr x₁ ys p
+    countVariables-BExpr (x or x₁) xs x₂ = let (ys , p) = countVariables-BExpr x xs x₂
+                                           in countVariables-BExpr x₁ ys p
+    countVariables-BExpr (x gt x₁) xs x₂ = let (ys , p) = countVariables-AExpr x xs x₂
+                                           in countVariables-AExpr x₁ ys p
+
+    countVariables-Stmt : Stmt → (xs : List String) → NoDupInd xs → Σ[ zs ∈ List String ] NoDupInd zs
+    countVariables-Stmt (v := e) xs q with v ∈?[ Data.String._≟_ ] xs
+    countVariables-Stmt (v := e) xs q | yes p = xs , q
+    countVariables-Stmt (v := e) xs q | no ¬p = (v ∷ xs) , ¬p ::: q
+    countVariables-Stmt skip xs q = xs , q
+    countVariables-Stmt (x seq x₁) xs q = let (ys , p) = countVariables-Stmt x xs q
+                                          in countVariables-Stmt x₁ ys p 
+    countVariables-Stmt (if c then x else x₁) xs q = let (ys , p) = countVariables-BExpr c xs q
+                                                         (zs , r) = countVariables-Stmt x ys p
+                                                     in countVariables-Stmt x₁ zs r
+    countVariables-Stmt (while c do x) xs q = let (zs , p) = countVariables-BExpr c xs q
+                                              in countVariables-Stmt x zs p
+
+    allVariables : Stmt → Σ[ zs ∈ List String ] NoDupInd zs
+    allVariables s = countVariables-Stmt s [] end
+
+    numVariables : Stmt → ℕ
+    numVariables s = length (proj₁ (allVariables s))
+
+  
+
+  module Labeled (program : Unlabeled.Stmt)  where
+    Var : Set
+    Var = Fin (Unlabeled.numVariables program)
+      
+    Lab : Set
+    Lab = Fin (Unlabeled.countBlocks program)
+
+    AExpr : Set
+    AExpr = Common.AExpr {Level.zero} Var
+    
+    BExpr : Set
+    BExpr = Common.BExpr {Level.zero} Var
+    
+    open Common hiding (AExpr ; BExpr) public
+    
+    infixr 50 _seq_
+    infixr 60 while_do_
+    infix 70 _:=_
+    data Stmt : Set where
+      _:=_ : (v : Var) → (e : AExpr) → (l : Lab) → Stmt
+      skip : (l : Lab) → Stmt
+      _seq_ : (s₁ : Stmt) → (s₂ : Stmt) → Stmt
+      if_then_else_ : (BExpr × Lab) → (t : Stmt) → (f : Stmt) → Stmt
+      while_do_ : (BExpr × Lab) → (b : Stmt) → Stmt
+
+--    open import Utilities.ListProperties
+
+
+    data Block : Set where
+      skip : (l : Lab) → Block
+      _:=_ : (x : Var) → (a : AExpr) → (l : Lab) → Block
+      bExpr : (c : BExpr) → (l : Lab) → Block
+ 
+    module 𝕍 where
+      open import Data.Vec public
+    open import Data.Vec using (_∷_ ; Vec)
+
+    {-
+    blocks' : (p : Unlabeled.Stmt) → Vec Block (Unlabeled.countBlocks p)
+    blocks' (v Unlabeled.:= e) = (({!!} := e) {!!}) ∷ 𝕍.[]
+    blocks' (Unlabeled.skip) = (skip {!!}) ∷ 𝕍.[] 
+    blocks' (p Unlabeled.seq p₁) = blocks' p Data.Vec.++ blocks' p₁
+    blocks' (Unlabeled.if b then p else p₁) = (bExpr b {!!}) ∷ (blocks' p Data.Vec.++ blocks' p₁)
+    blocks' (Unlabeled.while b do p) = (bExpr b {!!}) ∷ (blocks' p)
+                                                       
+    blocks : Vec Block (Unlabeled.countBlocks program)
+    blocks = blocks' program
+    -}
+    open import Relation.Binary
+    open import Data.Product
+    open import Relation.Nullary.Product
+    open import Data.Fin.Properties
+  
+    _≟A_ : Relation.Binary.Decidable {A = AExpr} _≡_
+    var x ≟A var x₁ with x Data.Fin.Properties.≟ x₁
+    var x ≟A var x₁ | yes p = yes (cong var p)
+    var x ≟A var x₁ | no ¬p = no (λ{ refl → ¬p refl})
+    var x ≟A lit x₁ = no (λ{ ()})
+    var x ≟A (y plus y₁) = no (λ{ ()})
+    var x ≟A (y min y₁) = no (λ{ ()})
+    var x ≟A (y mul y₁) = no (λ{ ()})
+    lit x ≟A var x₁ = no (λ{ ()})
+    lit x ≟A lit x₁ with x Data.Integer.≟ x₁
+    lit x ≟A lit x₁ | yes p = yes (cong lit p)
+    lit x ≟A lit x₁ | no ¬p = no (λ{ refl → ¬p refl})
+    lit x ≟A (y plus y₁) = no (λ{ ()})
+    lit x ≟A (y min y₁) = no (λ{ ()})
+    lit x ≟A (y mul y₁) = no (λ{ ()})
+    (x plus x₁) ≟A var x₂ = no (λ{ ()})
+    (x plus x₁) ≟A lit x₂ = no (λ{ ()})
+    (x plus x₁) ≟A (y plus y₁) with x ≟A y ×-dec x₁ ≟A y₁
+    (x plus x₁) ≟A (y plus y₁) | yes (proj₁ , proj₂) = yes (cong₂ _plus_ proj₁ proj₂)
+    (x plus x₁) ≟A (y plus y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+    (x plus x₁) ≟A (y min y₁) = no (λ{ ()})
+    (x plus x₁) ≟A (y mul y₁) = no (λ{ ()})
+    (x min x₁) ≟A var x₂ = no (λ{ ()})
+    (x min x₁) ≟A lit x₂ = no (λ{ ()})
+    (x min x₁) ≟A (y plus y₁) = no (λ{ ()})
+    (x min x₁) ≟A (y min y₁) with x ≟A y ×-dec x₁ ≟A y₁
+    (x min x₁) ≟A (y min y₁) | yes (proj₁ , proj₂) = yes (cong₂ _min_ proj₁ proj₂)
+    (x min x₁) ≟A (y min y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+    (x min x₁) ≟A (y mul y₁) = no (λ{ ()})
+    (x mul x₁) ≟A var x₂ = no (λ{ ()})
+    (x mul x₁) ≟A lit x₂ = no (λ{ ()})
+    (x mul x₁) ≟A (y plus y₁) = no (λ{ ()})
+    (x mul x₁) ≟A (y min y₁) = no (λ{ ()})
+    (x mul x₁) ≟A (y mul y₁) with x ≟A y ×-dec x₁ ≟A y₁
+    (x mul x₁) ≟A (y mul y₁) | yes (proj₁ , proj₂) = yes (cong₂ _mul_ proj₁ proj₂)
+    (x mul x₁) ≟A (y mul y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+  
+  
+    _≟B_ : Relation.Binary.Decidable {A = BExpr} _≡_
+    true ≟B true = yes refl
+    true ≟B false = no (λ{ ()})
+    true ≟B not y = no (λ{ ()})
+    true ≟B (y and y₁) = no (λ{ ()})
+    true ≟B (y or y₁) = no (λ{ ()})
+    true ≟B (x gt x₁) = no (λ{ ()})
+    false ≟B true = no (λ{ ()})
+    false ≟B false = yes refl
+    false ≟B not y = no (λ{ ()})
+    false ≟B (y and y₁) = no (λ{ ()})
+    false ≟B (y or y₁) = no (λ{ ()})
+    false ≟B (x gt x₁) =  no (λ{ ()})
+    not x ≟B true =  no (λ{ ()})
+    not x ≟B false =  no (λ{ ()})
+    not x ≟B not y with x ≟B y
+    not x ≟B not y | yes p = yes (cong not p)
+    not x ≟B not y | no ¬p = no (λ{ refl → ¬p refl})
+    not x ≟B (y and y₁) =  no (λ{ ()})
+    not x ≟B (y or y₁) =  no (λ{ ()})
+    not x ≟B (x₁ gt x₂) =  no (λ{ ()})
+    (x and x₁) ≟B true = no (λ{ ()})
+    (x and x₁) ≟B false = no (λ{ ()})
+    (x and x₁) ≟B not y = no (λ{ ()})
+    (x and x₁) ≟B (y and y₁) with x ≟B y | x₁ ≟B y₁
+    (x and x₁) ≟B (y and y₁) | yes p | yes p₁ = yes (cong₂ _and_ p p₁)
+    (x and x₁) ≟B (y and y₁) | no ¬p | yes p =  no (λ{ refl → ¬p refl})
+    (x and x₁) ≟B (y and y₁) | yes p | no ¬p =  no (λ{ refl → ¬p refl})
+    (x and x₁) ≟B (y and y₁) | no ¬p | no ¬p₁ = no (λ{ refl → ¬p refl})
+    (x and x₁) ≟B (y or y₁) = no (λ{ ()})
+    (x and x₁) ≟B (x₂ gt x₃) = no (λ{ ()})
+    (x or x₁) ≟B true =  no (λ{ ()})
+    (x or x₁) ≟B false =  no (λ{ ()})
+    (x or x₁) ≟B not y =  no (λ{ ()})
+    (x or x₁) ≟B (y and y₁) =  no (λ{ ()})
+    (x or x₁) ≟B (y or y₁) with x ≟B y ×-dec x₁ ≟B y₁
+    (x or x₁) ≟B (y or y₁) | yes (proj₁ , proj₂) = yes (cong₂ _or_ proj₁ proj₂)
+    (x or x₁) ≟B (y or y₁) | no ¬p = no (λ{ refl → ¬p (refl , refl)})
+    (x or x₁) ≟B (x₂ gt x₃) =  no (λ{ ()})
+    (x gt x₁) ≟B true =  no (λ{ ()})
+    (x gt x₁) ≟B false =  no (λ{ ()})
+    (x gt x₁) ≟B not y =  no (λ{ ()})
+    (x gt x₁) ≟B (y and y₁) =  no (λ{ ()})
+    (x gt x₁) ≟B (y or y₁) =  no (λ{ ()})
+    (x gt x₁) ≟B (x₂ gt x₃) with x ≟A x₂ ×-dec x₁ ≟A x₃
+    (x gt x₁) ≟B (x₂ gt x₃) | yes (proj₁ , proj₂) = yes (cong₂ _gt_ proj₁ proj₂)
+    (x gt x₁) ≟B (x₂ gt x₃) | no ¬p = no (λ{ refl → ¬p ((refl , refl))})
+  
+    init : Stmt → Lab
+    init ((v := e) l) = l
+    init (skip x) = x
+    init (s seq s₁) = init s
+    init (if proj₁ , proj₂ then s else s₁) = proj₂
+    init (while proj₁ , proj₂ do s) = proj₂
+
+    import Data.List.NonEmpty as L⁺
+    final : Stmt → L⁺.List⁺ Lab
+    final ((v := e) l) = L⁺.[ l ]
+    final (skip l) = L⁺.[ l ]
+    final (s seq s₁) = final s₁
+    final (if proj₁ , proj₂ then s else s₁) = final s L⁺.⁺++⁺ final s₁
+    final (while proj₁ , proj₂ do s) = L⁺.[ proj₂ ]
+
+    getLab : Block → Lab
+    getLab (skip l) = l
+    getLab ((x := a) l) = l
+    getLab (bExpr c l) = l
+  
+  
+    labels : Stmt → List Lab
+    labels ((v := e) l) = Data.List.[ l ]
+    labels (skip l) = Data.List.[ l ]
+    labels (s seq s₁) = labels s Data.List.++ labels s₁
+    labels (if x then s else s₁) = proj₂ x ∷ labels s Data.List.++ labels s₁
+    labels (while x do s) = proj₂ x ∷ labels s
+  
+    flow : Stmt → List (Lab × Lab)
+    flow ((v := e) l) = []
+    flow (skip l) = []
+    flow (s seq s₁) = flow s ++ flow s₁ ++ L⁺.toList (L⁺.map (λ x → x , init s₁) (final s)) 
+    flow (if x then s else s₁) = ((proj₂ x) , (init s)) ∷ ((proj₂ x) , (init s₁)) ∷ flow s ++ flow s₁
+    flow (while x do s) = ((proj₂ x) , (init s)) ∷ flow s ++ L⁺.toList (L⁺.map (λ l' → l' , proj₂ x) (final s))
+  
+    open import Data.Graph {!!}
+
+    flowᴿ : Stmt → List (Lab × Lab)
+    flowᴿ s = flow s ᴿ
+    
+    Var*-AExpr : AExpr → List Var
+    Var*-AExpr (var x) = [ x ]
+    Var*-AExpr (lit x) = []
+    Var*-AExpr (a plus a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+    Var*-AExpr (a min a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+    Var*-AExpr (a mul a₁) = Var*-AExpr a ++ Var*-AExpr a₁
+  
+    Var*-BExpr : BExpr → List Var
+    Var*-BExpr true = []
+    Var*-BExpr false = []
+    Var*-BExpr (not b) = []
+    Var*-BExpr (b and b₁) = []
+    Var*-BExpr (b or b₁) = []
+    Var*-BExpr (x gt x₁) = Var*-AExpr x ++ Var*-AExpr x₁
+
+    Var* : Stmt → List Var
+    Var* ((v := e) l) = v ∷ Var*-AExpr e
+    Var* (skip l) = []
+    Var* (s seq s₁) = Var* s ++ Var* s₁
+    Var* (if proj₁ , proj₂ then s else s₁) = Var*-BExpr proj₁ ++ Var* s ++ Var* s₁
+    Var* (while proj₁ , proj₂ do s) = Var*-BExpr proj₁ ++ Var* s
+  
+  open import Util.List
+  open import Data.List.Any
+  toLabeled : (us : Unlabeled.Stmt) → (open Labeled us) → (xs : List String) → NoDupInd xs → Σ[ zs ∈ List String ]
+                                                                                             Σ[ s ∈ Stmt ] NoDupInd zs
+  toLabeled (v Unlabeled.:= e) xs p with v ∈?[ Data.String._≟_ ] xs
+  toLabeled (v Unlabeled.:= e) xs p | yes q = xs , (({!index q!} Labeled.:= {!!}) {!!} , p)
+  toLabeled (v Unlabeled.:= e) xs p | no ¬q = {!!}
+  toLabeled Unlabeled.skip = {!!}
+  toLabeled (x Unlabeled.seq x₁) = {!!}
+  toLabeled (Unlabeled.if c then x else x₁) = {!!}
+  toLabeled (Unlabeled.while c do x) = {!!}
+
+--  open Common public
+--  open Common.AExpr public
+  
+  --open Common.AExpr {Level.zero} Var
+  --open Common.BExpr {Level.zero} Var
+
+
+  {-
+  data Stmt : Set where
+    _:=_ : (v : Var) → (e : AExpr) → (l : Lab) → Stmt
+    skip : (l : Lab) → Stmt
+    _seq_ : (s₁ : Stmt) → (s₂ : Stmt) → Stmt
+    if_then_else_ : (BExpr × Lab) → (t : Stmt) → (f : Stmt) → Stmt
+    while_do_ : (BExpr × Lab) → (b : Stmt) → Stmt
+  -}
+  
+  {-
+  postulate
+    _≟S_ : Relation.Binary.Decidable {A = Stmt} _≡_
+  -}
+
+    
+ 
+
+  {-
+  Var*' : AExpr → Pred Var Level.zero
+  Var*' (var x₁) v₁ = x₁ ≡ v₁
+  Var*' (lit x₁) v₁ = ⊥
+  Var*' (a plus a₁) v₁ = v₁ ∈ (Var*' a ∪ Var*' a₁)
+  Var*' (a min a₁) v₁ =  v₁ ∈ (Var*' a ∪ Var*' a₁)
+  Var*' (a mul a₁) v₁ = v₁ ∈ (Var*' a ∪ Var*' a₁)
+                                              
+                                              
+  Var* : Stmt → Pred Var Level.zero
+  Var* ((i := x) l) v = i ≡ v ⋁ v ∈ Var*' x
+  Var* (skip x) v = ⊥
+  Var* (s seq s₁) v = v ∈ (Var* s ∪ Var* s₁)
+  Var* (if c , l then t else f) v = v ∈ (Var* t ∪ Var* f)
+  Var* (while c , l do s) v = Var* s v
+
+  Var*'-dec : (expr : AExpr) → Decidable (Var*' expr)
+  Var*'-dec (var x) v = x Data.String.≟ v
+  Var*'-dec (lit x) v = no (λ x₁ → x₁)
+  Var*'-dec (x plus x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  Var*'-dec (x min x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  Var*'-dec (x mul x₁) v = Var*'-dec x v ⋁-dec Var*'-dec x₁ v
+  
+  Var*-dec : (program : Stmt) → Decidable (Var* program)
+  Var*-dec ((x := x₁) x₂) x₃ = x Data.String.≟ x₃ ⋁-dec Var*'-dec x₁ x₃
+  Var*-dec (skip x) x₁ = no (λ z → z)
+  Var*-dec (program seq program₁) x = Var*-dec program x ⋁-dec Var*-dec program₁ x
+  Var*-dec (if x then program else program₁) x₁ = Var*-dec program x₁ ⋁-dec Var*-dec program₁ x₁
+  Var*-dec (while x do program) x₁ =  Var*-dec program x₁
+  -}
+
+  {-
+  data Block : Set where
+    skip : (l : Lab) → Block
+    _:=_ : (x : Var) → (a : AExpr) → (l : Lab) → Block
+    bExpr : (c : BExpr) → (l : Lab) → Block
+  -}
+
+  {-
+  countBlocks : Stmt → ℕ
+  countBlocks ((v := e) l) = 1
+  countBlocks (skip l) = 1
+  countBlocks (x seq x₁) = countBlocks x Data.Nat.+ countBlocks x₁
+  countBlocks (if x then x₁ else x₂) = 1 Data.Nat.+ countBlocks x₁ Data.Nat.+ countBlocks x₂
+  countBlocks (while x do x₁) = 1 Data.Nat.+ countBlocks x₁
+
+  module 𝕍 where
+    open import Data.Vec public
+  open import Data.Vec using (_∷_ ; Vec)
+  blocks : (p : Stmt) → Vec Block (countBlocks p)
+  blocks ((v := e) l) = ((v := e) l) ∷ 𝕍.[]
+  blocks (skip l) = (skip l) ∷ 𝕍.[] 
+  blocks (p seq p₁) = blocks p Data.Vec.++ blocks p₁
+  blocks (if b , l then p else p₁) = (bExpr b l) ∷ (blocks p Data.Vec.++ blocks p₁)
+  blocks (while b , l do p) = (bExpr b l) ∷ (blocks p)
+  -}
+  
+  -- we want this function to be: Stmt → Vec Block n
+  -- but, we dont have proof that every label is present in the code.
+  {-
+  blocks : Stmt → List Block
+  blocks ((v := e) l) = [ (v := e) l ]
+  blocks (skip l) = [ skip l ]
+  blocks (s seq s₁) = blocks s ++ blocks s₁
+  blocks (if proj₁ , proj₂ then s else s₁) = bExpr proj₁ proj₂ ∷ blocks s ++ blocks s₁
+  blocks (while proj₁ , proj₂ do s) = bExpr proj₁ proj₂ ∷ blocks s
+  -}
+ 
+  -- but a quicker and dirtier solution is to use this function
+  
+
+--  open import Relation.Binary
+{-
+  open import Relation.Binary.Indexed
+  exa : Stmt → Setoid Var _ _
+  exa s = record { Carrier = Var* s ; _≈_ = λ {o} {a} x x₁ → a ≡ o ; isEquivalence = record { refl = λ {i} {x} → refl ; sym = λ { refl → refl } ; trans = λ{ refl refl → refl } } }
+
+  open import Function.Inverse
+  open import Function.Equality renaming (setoid to setoid')
+  open import Function.Equivalence renaming (setoid to setoid'')
+
+  open import Relation.Binary.On renaming (setoid to setoid''')
+
+
+
+  postulate
+    
+    inv : Σ[ n ∈ ℕ ] ((s : Stmt) → Inverse ((exa s) at "x") (setoid (Fin n)))
+  -}
+
+        {-record { to = record { _⟨$⟩_ = to ; cong = λ{ refl → refl } } ; from = record { _⟨$⟩_ = from ; cong = λ{ refl → refl } } ; inverse-of =
+        record { left-inverse-of = pa ; right-inverse-of = pb } }
+        -}
+
+
+
+  
+
+
+  {-
+  maxN : Stmt → ℕ
+  maxN (v := e) = 1
+  maxN skip = 1
+  maxN (s seq s₁) = maxN s + maxN s₁
+  maxN (if x then s else s₁) = 1 + maxN s + maxN s₁
+  maxN (while x do s) = 1 + maxN s
+
+  maxN' : Stmt → Σ[ n ∈ ℕ ] Fin n
+  maxN' (v := e) = 1 , Fin.zero
+  maxN' skip = 1 , Fin.zero
+  maxN' (s seq s₁) = (proj₁ (maxN' s) + proj₁ (maxN' s₁)) , {!(Data.Fin.pred (proj₂ (maxN' s))) fin+ (proj₂ (maxN' s₁))!}
+  maxN' (if x then s else s₁) = {!!} , {!!}
+  maxN' (while x do s) = {!!} , {!!}
+
+  {-
+  voor alle statements geldt niet dat er een label bestaat voor assignment,skip,if en while, die in die statement zit en groter is
+  dan het maximum dat berekent is voor deze statement.
+
+  -}
+                             
+  open import Data.Nat.Properties
+  conv : (s : Stmt) → LblStmt (maxN s)
+  conv s = proj₂ (conv' s ({!!}))
+    where conv' : (s' : Stmt) → (Fin (maxN s)) → (Fin (maxN s)) × LblStmt (maxN s)
+          conv' (v := e) n = Data.Fin.pred n , ((v := e) n)
+          conv' skip n = Data.Fin.pred n , skip n 
+          conv' (s' seq s'') n =
+            let (n₂ , s₂) = conv' s'' n
+                (n₁ , s₁) = conv' s' n₂
+            in n₁ , s₁ seq s₂
+          conv' (if x then s' else s'') n =
+            let (n₁ , s₁) = conv' s'' n
+                (n₂ , s₂) = conv' s' n₁
+            in Data.Fin.pred n₂ , (if x , n₂ then s₂ else s₁)
+          conv' (while x do s') n =
+            let (n₁ , s₁) = conv' s' n
+            in (Data.Fin.pred n₁) , (while x , n₁ do s₁)
+  -}
+
+
+  {-
+  module x (n : ℕ) where
+    open import Data.List.NonEmpty
+    Lab : Set
+    Lab = Fin n
+
+    mutual
+      data Stmt' : Set where
+        _:=_ :  Stmt'
+        skip :  Stmt'
+        if_then_else_ :  Stmt'
+        while_do_ : Stmt'
+
+      record LblStmt : Set where
+        field
+          lab  : Lab
+          stmt : Stmt'
+          
+      Program : Set
+      Program = List⁺ LblStmt
+  -}
+  {-  Decidable _⊎_
+  data Type : Set where
+   TBool : Type
+   TUnit : Type
+   TInt : Type
+
+  
+  data Term : Type -> Set where
+    var : ∀{a} -> String -> Term a
+    _:=_ : ∀{a} -> String -> Term a -> Term TUnit
+    if_then_else_ : ∀{a} -> Term TBool -> Term a -> Term a -> Term a
+    while_do_ : ∀{a} -> Term TBool -> Term a -> Term a
+    skip : Term TUnit
+    _seq_ : ∀{a b} -> Term a -> Term b -> Term TUnit
+    true : Term TBool
+    false : Term TBool
+    _and_ : Term TBool -> Term TBool -> Term TBool
+    _or_ : Term TBool -> Term TBool -> Term TBool
+    not_ : Term TBool -> Term TBool
+    CInt : ℕ -> Term TInt
+    _plus_ : Term TInt -> Term TInt -> Term TInt
+ 
+  
+  infixr 2 _seq_
+  infixr 3 _:=_
+
+  exampleProgram : Term TUnit
+  exampleProgram = "v" := CInt 1 seq "u" := CInt 1 seq if false then skip else while true or true do (_:=_ {TInt} "t" (var "u") seq _:=_ {TInt} "u" (var "v") seq "v" := var "u" plus var "t")
+
+
+
+  data UntypedTerm : Set where
+    var : String -> UntypedTerm 
+    _:=_ : String -> UntypedTerm -> UntypedTerm
+    if_then_else_ : UntypedTerm -> UntypedTerm -> UntypedTerm -> UntypedTerm
+    while_do_ : UntypedTerm -> UntypedTerm -> UntypedTerm
+    skip : UntypedTerm 
+    _seq_ : UntypedTerm -> UntypedTerm -> UntypedTerm 
+    true : UntypedTerm 
+    false : UntypedTerm
+    _and_ : UntypedTerm -> UntypedTerm -> UntypedTerm 
+    _or_ : UntypedTerm -> UntypedTerm -> UntypedTerm 
+    not_ : UntypedTerm -> UntypedTerm
+    CInt : ℕ -> UntypedTerm 
+    _plus_ : UntypedTerm -> UntypedTerm -> UntypedTerm
+
+  toUntypedTerm : ∀ {a} -> Term a -> UntypedTerm
+  toUntypedTerm (var x) = var x
+  toUntypedTerm (x := x₁) = x := toUntypedTerm x₁
+  toUntypedTerm (if x then x₁ else x₂) = if toUntypedTerm x then toUntypedTerm x₁ else toUntypedTerm x₂
+  toUntypedTerm (while x do x₁) = while toUntypedTerm x do toUntypedTerm x₁
+  toUntypedTerm skip = skip
+  toUntypedTerm (x seq x₁) = toUntypedTerm x seq toUntypedTerm x₁
+  toUntypedTerm true = true
+  toUntypedTerm false = false
+  toUntypedTerm (x and x₁) = toUntypedTerm x and toUntypedTerm x₁
+  toUntypedTerm (x or x₁) = toUntypedTerm x or toUntypedTerm x₁
+  toUntypedTerm (not_ x) = not toUntypedTerm x
+  toUntypedTerm (CInt x) = CInt x
+  toUntypedTerm (x plus x₁) = toUntypedTerm x plus toUntypedTerm x₁
+
+  record LabeledTerm : Set where
+    constructor labeledTerm
+    field
+      label : ℕ
+      term : UntypedTerm
+
+  open import Data.Product
+  mklabel : UntypedTerm → LabeledTerm
+  mklabel = proj₂ ∘ label' 0
+    where label' : (current : ℕ) → UntypedTerm → (ℕ × LabeledTerm)
+          label' n t@(var x) = (suc n) , (labeledTerm n t)
+          label' n (x := t) = let (n' , lt) = label' n t
+                              in suc n' , labeledTerm n' {!x := (lt!}
+          label' n (if t then t₁ else t₂) = {!!}
+          label' n (while t do t₁) = {!!}
+          label' n skip = {!!}
+          label' n (t seq t₁) = {!!}
+          label' n true = {!!}
+          label' n false = {!!}
+          label' n (t and t₁) = {!!}
+          label' n (t or t₁) = {!!}
+          label' n (not t) = {!!}
+          label' n (CInt x) = {!!}
+          label' n (t plus t₁) = {!!}
+
+  Stmt : Set
+  Stmt = UntypedTerm
+
+  Label : Set
+  Label = ℕ
+  
+  init : Stmt → Label
+  init = {!!}
+  
+  -}
