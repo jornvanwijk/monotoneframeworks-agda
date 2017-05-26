@@ -21,6 +21,8 @@ open import Data.Fin.Properties
 open import LatticeTheory.Unit
 open import Relation.Binary
 open import Data.Nat.Properties
+open import Function.Injection
+
 
 
 -- inject≤ : ∀ {m n} → Fin m → m N≤ n → Fin n
@@ -35,25 +37,41 @@ Finᴸ′ n = completeLattice ℂ _⊔_ _≟_ ⊥ ⊥-isMinimal ⊔-idem ⊔-com
   ⊤ : ℂ
   ⊤ = fromℕ≤ {n} {suc n} (s≤s (≤′⇒≤ ≤′-refl))
   _⊔_ : Op₂ ℂ
+  x ⊔ y with x Data.Fin.≤? y
+  x ⊔ y | yes p = y
+  x ⊔ y | no ¬p = x
+{-
   x ⊔ y with toℕ x Data.Nat.+ toℕ y Data.Nat.≤? n
   x ⊔ y | yes p = fromℕ≤ (s≤s p) -- inject≤ {toℕ x Data.Nat.+ toℕ y} {suc n} {!x Data.Fin.+ y!} {!p!} --inject≤ (x Data.Fin.+ y) p
   x ⊔ y | no ¬p = ⊤ -- new number:  (x + y) - (x + y - n)
-  
+  -}
   _⊓_ : Op₂ ℂ
-  x ⊓ y = {!!}
-  
+  x ⊓ y with x Data.Fin.≤? y
+  x ⊓ y | yes p = x
+  x ⊓ y | no ¬p = y
+
   _≟′_ : Decidable {A = ℂ} _≡_
-  x ≟′ y = {!Data.Fin.Properties.eq?!}
+  x ≟′ y = Data.Fin.Properties.eq? Function.Injection.id x y
+  
   open Operators ℂ ⊥ _⊔_ _≟_
   ⊥-isMinimal : (c : ℂ) -> ⊥ ⊑ c
-  ⊥-isMinimal zero = refl
-  ⊥-isMinimal (suc c) with suc (toℕ c) Data.Nat.≤? n
-  ⊥-isMinimal (suc c) | yes p = {!!}
-  ⊥-isMinimal (suc c) | no ¬p = {!!}
+  ⊥-isMinimal c = refl
+
+  ⊤-isMaximal : (c : ℂ) → c ⊑ ⊤
+  ⊤-isMaximal zero = refl
+  ⊤-isMaximal (suc c) with suc (toℕ c) Data.Nat.≤? toℕ (fromℕ≤ (s≤s {!!}))
+  ⊤-isMaximal (suc c) | yes p = {!!}
+  ⊤-isMaximal (suc c) | no ¬p = {!!} 
   ⊔-idem : Idempotent _⊔_
-  ⊔-idem = {!!}
+  ⊔-idem x with x Data.Fin.≤? x
+  ⊔-idem x | yes p = refl
+  ⊔-idem x | no ¬p = refl
   ⊔-comm : Commutative _⊔_
-  ⊔-comm = {!!}
+  ⊔-comm x y with x Data.Fin.≤? y | y Data.Fin.≤? x
+  ⊔-comm x y | yes p | (yes p₁) = {!!}
+  ⊔-comm x y | yes p | (no ¬p) = refl
+  ⊔-comm x y | no ¬p | (yes p) = refl
+  ⊔-comm x y | no ¬p | (no ¬p₁) = {!!}
   ⊔-cong : _⊔_ Preserves₂ _≡_ ⟶ _≡_ ⟶ _≡_
   ⊔-cong = {!!}
   ⊔-assoc : Associative _⊔_

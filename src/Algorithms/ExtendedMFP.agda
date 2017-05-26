@@ -46,9 +46,9 @@ module Algorithms.ExtendedMFP {a} (mf : ExtendedFramework.ExtendedFramework a) w
   open FixedPoint
   open BoundedSemiLattice L
   open Reasoning
-  open ProductEncoding
-  open Containment {Level.zero} {n * n} {Fin n × Fin n} (ℕ×ℕ↔ℕ n)
-  open Instantiated (n * n) (ℕ×ℕ↔ℕ n)
+  open import Util.Fin-product
+  open Containment {Level.zero} {n * n} {Fin n × Fin n} (fin×↔fin* n n)
+  open Instantiated (n * n) {Level.zero} {Fin n × Fin n} (fin×↔fin* n n)
   open import Data.Graph n
   private
     module V where
@@ -221,7 +221,7 @@ module Algorithms.ExtendedMFP {a} (mf : ExtendedFramework.ExtendedFramework a) w
       currentEdgeInPredecessors : ℓ list∈ predecessors (set-to-list F) ℓ′
       currentEdgeInPredecessors = predecessors-∈ (set-to-list F) (ℓ , ℓ′) (set∈-to-list∈ currentEdgeExistsInFlow)
       currentEdgeInPredecessorsF′ : ℓ list∈ predecessors (set-to-list F′) ℓ′
-      currentEdgeInPredecessorsF′ = predecessors-∈ (set-to-list F′) (ℓ , ℓ′) (set∈-to-list∈ (⊑-to-set∈ F′⊒F currentEdgeExistsInFlow))  
+      currentEdgeInPredecessorsF′ = predecessors-∈ (set-to-list F′) (ℓ , ℓ′) (set∈-to-list∈ (⊑-to-set∈ {ℓ , ℓ′} {F} {F′} F′⊒F currentEdgeExistsInFlow))  
       case-nonemptyworklist : Dec (𝑓 ℓ x ⊑ lookup ℓ′ x) → Acc V._⊐_ x → Acc F._⊐_ F → Σ[ F̂ ∈ CFG ] Σ[ x ∈ FixedPoint F̂ ] ((y : FixedPoint F̂) → fp x V.⊑ fp y)
       case-nonemptyworklist (yes p) rs ts = mfp-extended x ι⊑x rs workList F ιF⊑F ts x⊑fp (λ ℓ′′ ℓ′′′ x₁ → ∈worklist-⇒-∈F ℓ′′ ℓ′′′ (there x₁)) ⋄x⊒fx' F⊒next x⊑⨆f F⊑⨆F
        where
@@ -281,15 +281,15 @@ module Algorithms.ExtendedMFP {a} (mf : ExtendedFramework.ExtendedFramework a) w
           ≡⟨  fixed⇒reductive F̂ (fp y) (isFixedPoint y) ℓ ℓ′ (⊑-to-set∈ {(ℓ , ℓ′)} {F} {F̂} (F.⊑-trans F′⊒F F̂⊒F′) (∈worklist-⇒-∈F ℓ ℓ′ (here refl)))  ⟩ 
              lookup ℓ′ (fp y)
           ∎)
-        
+          
         ∈worklist-⇒-∈F′ : (ℓ′′ ℓ′′′ : Label) → (ℓ′′ , ℓ′′′) list∈ set-to-list (F′ Util.Subset.- F) 𝕃.++ outgoing (set-to-list F) ℓ′  𝕃.++ workList → (ℓ′′ , ℓ′′′) set∈ F′
         ∈worklist-⇒-∈F′ ℓ′′ ℓ′′′ e∈wl =
             let r = Inverse.from (Data.List.Any.Properties.++↔ {P = λ x₁ → (ℓ′′ , ℓ′′′) ≡ x₁} {xs = set-to-list (F′ Util.Subset.- F)} {ys = outgoing (set-to-list F) ℓ′ 𝕃.++ workList}) ⟨$⟩ e∈wl
             in case r of λ where
-                (inj₁ x₁) → proj₁ (Equivalence.to ⊓⇔× ⟨$⟩ list∈-to-set∈ x₁)
+                (inj₁ x₁) → proj₁ (Equivalence.to (⊓⇔× {F′} {∁ F} {ℓ′′ , ℓ′′′}) ⟨$⟩ (list∈-to-set∈ {ℓ′′ , ℓ′′′} {F′ Util.Subset.- F} x₁))
                 (inj₂ y₁) → let t = Inverse.from (Data.List.Any.Properties.++↔ {P = λ x₁ → (ℓ′′ , ℓ′′′) ≡ x₁} {xs = outgoing (set-to-list F) ℓ′} {ys = workList}) ⟨$⟩ y₁
                             in case t of λ where
-                                (inj₁ x₂) → ⊑-to-set∈ F′⊒F (list∈-to-set∈ (outgoing-⊆ (set-to-list F) ℓ′ x₂)) 
+                                (inj₁ x₂) → ⊑-to-set∈ {ℓ′′ , ℓ′′′} {F} {F′} F′⊒F (list∈-to-set∈ (outgoing-⊆ (set-to-list F) ℓ′ x₂)) 
                                 (inj₂ y) → ⊑-to-set∈ {ℓ′′ , ℓ′′′} {F} {F′} F′⊒F (∈worklist-⇒-∈F ℓ′′ ℓ′′′ (there y)) 
         
         lemma-l₄≠ℓ′ : ∀{l₃ l₄} → ¬( l₃ ≡ ℓ′ ) → ¬( l₄ ≡ ℓ′ ) → 𝓕 l₃ (lookup l₃ (x [ ℓ′ ]≔ 𝓕 ℓ (lookup ℓ x) ⊔ lookup ℓ′ x)) ⊔ lookup l₄ (x [ ℓ′ ]≔ 𝓕 ℓ (lookup ℓ x) ⊔ lookup ℓ′ x) ≡ 𝓕 l₃ (lookup l₃ x) ⊔ lookup l₄ x
@@ -336,11 +336,11 @@ module Algorithms.ExtendedMFP {a} (mf : ExtendedFramework.ExtendedFramework a) w
         ⋄x′⊒fx′ _ _ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | yes refl with ℓ FinP.≟ ℓ′
         ⋄x′⊒fx′ _ _ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | yes refl | (yes refl) = contradiction (++ʳ (set-to-list (F′ Util.Subset.- F)) (++ˡ (outgoing-∈ (set-to-list F) (ℓ , ℓ′) (set∈-to-list∈ l₃,l₄set∈F)))) l₃,l₄∉workList
         ⋄x′⊒fx′ _ _ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | yes refl | (no ¬p) = trans (lemma-ℓ≠ℓ′ ¬p) (sym (lookup∘update ℓ′ x (𝓕 ℓ (lookup ℓ x) ⊔ lookup ℓ′ x)))
-        ⋄x′⊒fx′ l₃ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | no ¬p with l₃ FinP.≟ ℓ′ | l₄ FinP.≟ ℓ′ | ⋄x⊒fx l₃ l₄ (¬∁ (λ x₃ → l₃,l₄∉workList (++ˡ (set∈-to-list∈ (set∈-- l₃,l₄set∈F′ (set∈∁⇒set∉ x₃)))))) (λ x₁ → l₃,l₄∉workList (++ʳ (set-to-list (F′ Util.Subset.- F)) (++ʳ (outgoing (set-to-list F) ℓ′) (⊎-elim-left (Inverse.from (∷↔ (λ x → (l₃ , l₄) ≡ x)) ⟨$⟩ x₁) ¬p))))
+        ⋄x′⊒fx′ l₃ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | no ¬p with l₃ FinP.≟ ℓ′ | l₄ FinP.≟ ℓ′ | ⋄x⊒fx l₃ l₄ (¬∁ {F} {l₃ , l₄} (λ x₃ → l₃,l₄∉workList (++ˡ (set∈-to-list∈ (set∈-- {F′} {F} {l₃ , l₄} l₃,l₄set∈F′ (set∈∁⇒set∉ {F} {l₃ , l₄} x₃)))))) (λ x₁ → l₃,l₄∉workList (++ʳ (set-to-list (F′ Util.Subset.- F)) (++ʳ (outgoing (set-to-list F) ℓ′) (⊎-elim-left (Inverse.from (∷↔ (λ x → (l₃ , l₄) ≡ x)) ⟨$⟩ x₁) ¬p))))
         ⋄x′⊒fx′ _ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | no ¬p | yes refl | _ | _ = contradiction (++ʳ (set-to-list (F′ Util.Subset.- F)) (++ˡ (outgoing-∈ (set-to-list F) (ℓ′ , l₄) (set∈-to-list∈ l₃,l₄set∈F)))) l₃,l₄∉workList
         ⋄x′⊒fx′ l₃ _ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | no ¬p | no l₃≠ℓ′ | yes refl | y = trans (lemma-l₄≡ℓ′ l₃≠ℓ′ refl y) (sym (lookup∘update ℓ′ x (𝓕 ℓ (lookup ℓ x) ⊔ lookup ℓ′ x))) 
         ⋄x′⊒fx′ l₃ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | yes l₃,l₄set∈F | no ¬p | no l₃≠ℓ′ | no l₄≠ℓ′ | y = trans (lemma-l₄≠ℓ′ l₃≠ℓ′ l₄≠ℓ′) (trans y (sym (lookup∘update′ l₄≠ℓ′ x (𝓕 ℓ (lookup ℓ x) ⊔ lookup ℓ′ x)))) 
-        ⋄x′⊒fx′ l₃ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | no l₃,l₄set∉F | _ = contradiction (++ˡ (set∈-to-list∈ (set∈-- l₃,l₄set∈F′ l₃,l₄set∉F))) l₃,l₄∉workList
+        ⋄x′⊒fx′ l₃ l₄ l₃,l₄set∈F′ l₃,l₄∉workList | no l₃,l₄set∉F | _ = contradiction (++ˡ (set∈-to-list∈ (set∈-- {F′} {F} {l₃ , l₄} l₃,l₄set∈F′ l₃,l₄set∉F))) l₃,l₄∉workList
 
         fx⊑fx′-pointwise : (z : Label) → 𝑓 z x ⊑ 𝑓 z x′
         fx⊑fx′-pointwise z with z FinP.≟ ℓ′
@@ -382,7 +382,7 @@ module Algorithms.ExtendedMFP {a} (mf : ExtendedFramework.ExtendedFramework a) w
           ⨆ (𝕃.map (flip 𝑓 x) (predecessors (set-to-list F) ℓ′′))
           ⊑⟨ ⨆⊑⨆-pointwise _ _ (Pointwise.rec (λ {v} {v₁} v₂ → Pointwise.Rel _⊑_ (𝕃.map (flip 𝑓 x) v) (𝕃.map (flip 𝑓 x′) v₁)) (λ {a} {b} {xs} {ys} {xs∼ys} x∼y x₂ → f {a} {b} {xs} {ys} {xs∼ys} x∼y x₂) Pointwise.[] (Pointwise.≡⇒Rel≡ (refl {_} {_} {predecessors (set-to-list F) ℓ′′}))) ⟩
           ⨆ (𝕃.map (flip 𝑓 x′) (predecessors (set-to-list F) ℓ′′))
-          ⊑⟨ ⨆-mono (map-mono _ (predecessors-mono _ (set-to-list-mono (⊑-to-set∈ F′⊒F))))  ⟩
+          ⊑⟨ ⨆-mono (map-mono _ (predecessors-mono _ (set-to-list-mono ( λ {a} x₂ → ⊑-to-set∈ {a} {F} {F′} F′⊒F x₂))))  ⟩
           ⨆ (𝕃.map (flip 𝑓 x′) (predecessors (set-to-list F′) ℓ′′))
           ∎
          where f : {a : Label} {b : Label} {xs ys : List Label} {xs∼ys : Pointwise.Rel _≡_ xs ys} (x∼y : a ≡ b) → Pointwise.Rel _⊑_ (𝕃.map (flip 𝑓 x) xs) (𝕃.map (flip 𝑓 x′) ys) → Pointwise.Rel _⊑_ (flip 𝑓 x a ∷ 𝕃.map (flip 𝑓 x) xs) (flip 𝑓 x′ b ∷ 𝕃.map (flip 𝑓 x′) ys)

@@ -54,8 +54,8 @@ module MonotoneFramework where
 
 
 
-    open ProductEncoding
-    open Containment {Level.zero} {n * n} {Fin n × Fin n} (ℕ×ℕ↔ℕ n) 
+    open import Util.Fin-product
+    open Containment {Level.zero} {n * n} {Fin n × Fin n} (fin×↔fin* n n)
     asExtendedFramework : ExtendedFramework a
     ExtendedFramework.n asExtendedFramework = n
     ExtendedFramework.L asExtendedFramework = L

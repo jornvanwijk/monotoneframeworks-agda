@@ -7,7 +7,7 @@ open import Data.Fin
 open import Algebra
 open import Relation.Binary.PropositionalEquality
 open CommutativeSemiring commutativeSemiring
-open import Algebra.Operations semiring
+open import Algebra.Operations semiring hiding (_×_)
 open import Function.Equality using (_⟨$⟩_)  
 open import Relation.Nullary.Decidable
 open import Relation.Nullary
@@ -82,5 +82,7 @@ module Util.BoundedList where
   example : List (BoundedList (Fin 2) 2)
   example = allBoundedLists (2 , Function.Inverse.id)
 
+  open import Util.Fin-product
+  open import Data.Product
   postulate
     isBijectiveToFin : ∀{a k} → {A : Set a} → Σ[ n ∈ ℕ ] A ↔ Fin n → Σ[ r ∈ ℕ ] BoundedList A k ↔ Fin r

@@ -9,12 +9,12 @@ open import Data.FixedPoint.VectorFlowFixedPoint
 open import While.Language
 open import While.Examples
 open import While-Fun.Language
-open import While-Fun.Language
+open import While-Fun.Examples
 
 open import Util.Bag
 open import Util.BoundedList
 open import Util.CantorPair
--- open import Util.Fin-product
+open import Util.Fin-product
 open import Util.Function
 open import Util.Integer
 open import Util.List

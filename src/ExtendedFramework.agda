@@ -50,34 +50,6 @@ open import Function
 
 module ExtendedFramework where
 
-  module ProductEncoding (n : ℕ) where
-
--- To encode (x,y) -> z:
-
-  {-
-  to′ : (ℕ × ℕ) → ℕ
-  to′ (x , y) = ⌊ (x Data.Nat.+ y) * (x Data.Nat.+ y Data.Nat.+ 1) /2⌋ Data.Nat.+ y
-
-  from′ : ℕ → (ℕ × ℕ)
-  from′ = {!!}
-
-
--- z=((x+y)(x+y+1))/2+y
-  
-  to : Fin n × Fin n → Fin (n * n)
-  to (ℓ , ℓ′) = let x = toℕ ℓ
-                    y = toℕ ℓ′
-               in {!⌊ (x Data.Nat.+ y) * (x Data.Nat.+ y Data.Nat.+ 1) /2⌋ Data.Nat.+ y!}
-  -}
-    postulate
-      ℕ×ℕ↔ℕ : (Fin n × Fin n) ↔ Fin (n * n)
-  {-
-  Inverse.to ℕ×ℕ↔ℕ = →-to-⟶ {!to′!}
-  Inverse.from ℕ×ℕ↔ℕ = {!!}
-  Inverse.inverse-of ℕ×ℕ↔ℕ = {!!}
-  -}
-
-
   record ExtendedFramework a : Set (Level.suc a) where
     field
       n : ℕ

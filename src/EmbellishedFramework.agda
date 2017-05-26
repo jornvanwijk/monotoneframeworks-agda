@@ -145,8 +145,8 @@ record EmbellishedMonotoneFramework a : Set (Level.suc a) where
               }
 
 
-  open ProductEncoding
-  open Containment {Level.zero} {n * n} {Fin n × Fin n} (ℕ×ℕ↔ℕ n) 
+  open import Util.Fin-product
+  open Containment {Level.zero} {n * n} {Fin n × Fin n} (fin×↔fin* n n) 
   asExtendedFramework : (next : Label → ℂ → Subset (n * n)) → ((ℓ : Fin n) → Monotone₂ _⊑_ (BoundedSemiLattice._⊑_ (𝓟ᴸ-by-inclusion (n * n))) (next ℓ)) → ExtendedFramework a
   asExtendedFramework next next-mono =
     record

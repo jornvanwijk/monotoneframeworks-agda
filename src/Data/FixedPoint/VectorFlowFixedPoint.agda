@@ -25,10 +25,10 @@ module Data.FixedPoint.VectorFlowFixedPoint {a} (mf : ExtendedFramework a) where
   open Membership-≡ renaming (_∈_ to _list∈_)
   open import Data.List.All using (All)
 
-  open ProductEncoding
+  open import Util.Fin-product
   open import Util.Subset
-  open Containment {Level.zero} {n * n} {Fin n × Fin n} (ℕ×ℕ↔ℕ n) 
-  open Instantiated (n * n) (ℕ×ℕ↔ℕ n)
+  open Containment {Level.zero} {n * n} {Fin n × Fin n} (fin×↔fin* n n) 
+  open Instantiated (n * n) (fin×↔fin* n n)
   private
     module V where
       open BoundedSemiLattice (Vecᴸ L n) public
