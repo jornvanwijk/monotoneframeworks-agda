@@ -26,9 +26,15 @@ open import LatticeTheory.ByBijection
 open import Data.Vec.Properties
 
 
+-- version from stdlib; but not in v0.13
+lookup-map' : ∀ {a b n} {A : Set a} {B : Set b} (i : Fin n) (f : A → B) (xs : Vec A n) →
+             lookup i (Data.Vec.map f xs) ≡ f (lookup i xs)
+lookup-map' zero    f (x ∷ xs) = refl
+lookup-map' (suc i) f (x ∷ xs) = lookup-map' i f xs
+
 postulate
   fun-ext : ∀{a b} → Extensionality a b
-module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedSemiLattice b) where    
+module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedSemiLattice b) where
   private
     n : ℕ
     n = proj₁ inv
@@ -41,10 +47,10 @@ module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedS
 
     mkVec : (A → L.ℂ) → Vec L.ℂ n
     mkVec f = Data.Vec.map (λ x → f (from ⟨$⟩ x)) (allFin n)
-  
+
     mkFun : Vec L.ℂ n → A → L.ℂ
     mkFun v x = lookup (to ⟨$⟩ x) v
-  
+
     open ≡-Reasoning
     right-inverse' : (x : Vec L.ℂ n) → mkVec (mkFun x) ≡ x
     right-inverse' x = begin
@@ -64,7 +70,7 @@ module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedS
                          mkFun (mkVec f) x
                          ≡⟨⟩
                          lookup (to ⟨$⟩ x) (Data.Vec.map (λ x → f (from ⟨$⟩ x)) (allFin n))
-                         ≡⟨ lookup-map (to ⟨$⟩ x) (λ x → f (from ⟨$⟩ x)) (allFin n) ⟩
+                         ≡⟨ lookup-map' (to ⟨$⟩ x) (λ x → f (from ⟨$⟩ x)) (allFin n) ⟩
                          f (from ⟨$⟩ (lookup (to ⟨$⟩ x) (allFin n)))
                          ≡⟨ cong (f $_) (subst (λ y → from ⟨$⟩ y ≡ x) (sym (lookup∘tabulate Function.id (to ⟨$⟩ x))) (left-inverse-of x)) ⟩
                          f x
@@ -81,12 +87,12 @@ module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedS
 
   infixr 2 _-[_]→_
   _-[_]→_ : BoundedSemiLattice (b Level.⊔ a) --Vecᴸ ? ?
-  _-[_]→_ = fromBijectionᴸ {b Level.⊔ a} {b} (A → L.ℂ) (Vecᴸ L n) TFS↔Vecᴸ 
+  _-[_]→_ = fromBijectionᴸ {b Level.⊔ a} {b} (A → L.ℂ) (Vecᴸ L n) TFS↔Vecᴸ
 
   open BoundedSemiLattice (_-[_]→_)
   open LatticeTheory.ByBijection.Properties
   open import Util.Vector
-  
+
   $-⊔ : (f g : A → L.ℂ) → (x : A) → (f ⊔ g) x ≡ f x L.⊔ g x
   $-⊔ f g x = begin
               (f ⊔ g) x
@@ -94,9 +100,9 @@ module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedS
               lookup (Inverse.to (proj₂ inv) ⟨$⟩ x) (Data.Vec.map (λ x₁ → f (Inverse.from (proj₂ inv) ⟨$⟩ x₁)) (tabulate Function.id))
               L.⊔
               lookup (Inverse.to (proj₂ inv) ⟨$⟩ x) (Data.Vec.map (λ x₁ → g (Inverse.from (proj₂ inv) ⟨$⟩ x₁)) (tabulate Function.id))
-              ≡⟨ L.⊔-cong₂ (lemma f) (lemma g) ⟩ 
+              ≡⟨ L.⊔-cong₂ (lemma f) (lemma g) ⟩
               f x L.⊔ g x
-              ∎ 
+              ∎
           where lemma : (h : A → L.ℂ) → lookup (Inverse.to (proj₂ inv) ⟨$⟩ x) (Data.Vec.map (λ x₁ → h (Inverse.from (proj₂ inv) ⟨$⟩ x₁)) (tabulate Function.id)) ≡ h x
                 lemma h = begin
                   lookup (Inverse.to (proj₂ inv) ⟨$⟩ x) (Data.Vec.map (λ x₁ → h (Inverse.from (proj₂ inv) ⟨$⟩ x₁)) (tabulate Function.id))
@@ -124,7 +130,7 @@ module _ {a} {b} (A : Set a) (inv : Σ[ n ∈ ℕ ] (A ↔ Fin n)) (L : BoundedS
   $-⊑ f g x x₁ = begin
                   f x L.⊔ g x
                   ≡⟨ sym ($-⊔ f g x) ⟩
-                  (f ⊔ g) x 
-                  ≡⟨ cong (_$ x) x₁ ⟩ 
+                  (f ⊔ g) x
+                  ≡⟨ cong (_$ x) x₁ ⟩
                   g x
                   ∎
